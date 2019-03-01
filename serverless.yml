@@ -1,0 +1,70 @@
+
+service: aws-dashboard 
+
+provider:
+  name: aws
+  runtime: python3.7
+  stage: dev
+  region: eu-north-1
+  memorySize: 128
+  profile: CHANGE_ME
+  environment:
+    www_bucket: 'CHANGE_ME'
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+      Resource: "arn:aws:s3:::${self:provider.environment.www_bucket}/*"
+    - Effect: "Allow"
+      Action:
+        - "cloudwatch:ListDashboards"
+        - "cloudwatch:GetMetricWidgetImage"
+        - "cloudwatch:GetDashboard"
+      Resource: "*"
+    
+functions:
+  aws-dashboard:
+    handler: dashboard.main
+    events:
+      - schedule: rate(1 hour)
+
+resources:
+  Resources:
+    SiteBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        #BucketName: ${self:custom.siteName}-${self:provider.stage}-${self:custom.hostedZoneName}
+        #BucketName: ${self:custom.bucketName.${self:custom.stage}}
+        BucketName: ${self:provider.environment.www_bucket}
+        WebsiteConfiguration:
+          IndexDocument: index.html
+  
+    SiteBucketS3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: SiteBucket
+        PolicyDocument:
+          Statement:
+            - Sid: GetObject
+              Effect: Allow
+              Principal: "*"
+              Action:
+              - s3:GetObject
+              Resource:
+                Fn::Join: [
+                  "", [
+                    "arn:aws:s3:::",
+                    {
+                      "Ref": "SiteBucket"
+                    },
+                    "/*"
+                  ]
+                ]
+              Condition:
+                IpAddress:
+                  aws:SourceIP:
+                    - ADD_HERE_IP
+
+plugins:
+  - serverless-python-requirements
